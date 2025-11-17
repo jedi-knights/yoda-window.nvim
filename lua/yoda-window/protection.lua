@@ -3,7 +3,7 @@
 
 local M = {}
 
-local win_utils = require("yoda-window_utils")
+local win_utils = require("yoda-window.utils")
 local notify = require("yoda-adapters.notification")
 
 -- Cache for protected windows
