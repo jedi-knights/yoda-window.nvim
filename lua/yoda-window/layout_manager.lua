@@ -3,6 +3,20 @@
 
 local M = {}
 
+local config = {}
+
+-- ============================================================================
+-- Configuration
+-- ============================================================================
+
+function M.setup(opts)
+  config = opts or {}
+end
+
+function M.get_config()
+  return vim.deepcopy(config)
+end
+
 -- ============================================================================
 -- Private Functions
 -- ============================================================================
@@ -76,29 +90,18 @@ function M.handle_buf_win_enter(buf)
     return
   end
 
-  -- Re-enable layout management with window protection
   local current_win = vim.api.nvim_get_current_win()
-  local protection = require("yoda-window.protection")
 
-  -- Check if buffer is trying to enter a protected window
-  if not protection.is_buffer_switch_allowed(current_win, buf) then
-    vim.schedule(function()
+  vim.schedule(function()
+    if not vim.api.nvim_buf_is_valid(buf) or not vim.api.nvim_win_is_valid(current_win) then
+      return
+    end
+
+    local protection = require("yoda-window.protection")
+    if not protection.is_buffer_switch_allowed(current_win, buf) then
       protection.redirect_buffer_from_protected_window(buf, current_win)
-    end)
-  end
-end
-
---- Setup window layout management autocmds
---- @param autocmd function vim.api.nvim_create_autocmd
---- @param augroup function vim.api.nvim_create_augroup
-function M.setup_autocmds(autocmd, augroup)
-  autocmd("BufWinEnter", {
-    group = augroup("YodaWindowLayout", { clear = true }),
-    desc = "Ensure proper window placement with Snacks explorer and OpenCode",
-    callback = function(args)
-      M.handle_buf_win_enter(args.buf)
-    end,
-  })
+    end
+  end)
 end
 
 return M

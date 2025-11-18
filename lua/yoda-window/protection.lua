@@ -3,11 +3,32 @@
 
 local M = {}
 
-local win_utils = require("yoda-window.utils")
-local notify = require("yoda-adapters.notification")
-
--- Cache for protected windows
+local config = {}
+local win_utils
 local protected_windows = {}
+
+-- ============================================================================
+-- Configuration
+-- ============================================================================
+
+function M.setup(opts)
+  config = opts or {}
+end
+
+function M.get_config()
+  return vim.deepcopy(config)
+end
+
+-- ============================================================================
+-- Private Functions
+-- ============================================================================
+
+local function get_win_utils()
+  if not win_utils then
+    win_utils = require("yoda-window.utils")
+  end
+  return win_utils
+end
 
 --- Check if window is protected (explorer, opencode, etc.)
 --- @param win number Window handle
@@ -66,16 +87,17 @@ end
 --- Create a new main editing window
 --- @return number new_win New window handle
 local function create_main_editing_window()
-  -- Try to split from explorer window if available
-  local explorer_win = win_utils.find_snacks_explorer()
+  local utils = get_win_utils()
+  local explorer_win = utils.find_snacks_explorer()
   if explorer_win then
-    vim.api.nvim_set_current_win(explorer_win)
-    vim.cmd("rightbelow vsplit")
-    return vim.api.nvim_get_current_win()
+    local ok = pcall(vim.api.nvim_set_current_win, explorer_win)
+    if ok then
+      pcall(vim.cmd, "rightbelow vsplit")
+      return vim.api.nvim_get_current_win()
+    end
   end
 
-  -- Fallback to creating a split from current window
-  vim.cmd("vsplit")
+  pcall(vim.cmd, "vsplit")
   return vim.api.nvim_get_current_win()
 end
 
@@ -175,48 +197,26 @@ function M.is_buffer_switch_allowed(target_win, buf)
   return false
 end
 
---- Setup window protection autocmds
---- @param autocmd function vim.api.nvim_create_autocmd
---- @param augroup function vim.api.nvim_create_augroup
-function M.setup_autocmds(autocmd, augroup)
-  -- Protect against unwanted buffer switches
-  autocmd("BufWinEnter", {
-    group = augroup("YodaWindowProtection", { clear = true }),
-    desc = "Protect special windows from buffer overwrites",
-    callback = function(args)
-      local buf = args.buf
-      local win = vim.api.nvim_get_current_win()
+--- Handle buffer entering window (called from autocmd)
+--- @param buf number Buffer handle
+function M.handle_buf_win_enter(buf)
+  local win = vim.api.nvim_get_current_win()
 
-      -- Skip if not a regular file buffer
-      local ft = vim.bo[buf].filetype
-      local bt = vim.bo[buf].buftype
-      if bt ~= "" or ft == "" or ft == "alpha" then
-        return
-      end
+  local ft = vim.bo[buf].filetype
+  local bt = vim.bo[buf].buftype
+  if bt ~= "" or ft == "" or ft == "alpha" then
+    return
+  end
 
-      -- Check if current window is protected
-      if is_protected_window(win) then
-        -- Redirect buffer to appropriate window
-        if not M.is_buffer_switch_allowed(win, buf) then
-          vim.schedule(function()
-            M.redirect_buffer_from_protected_window(buf, win)
-          end)
+  if is_protected_window(win) then
+    if not M.is_buffer_switch_allowed(win, buf) then
+      vim.schedule(function()
+        if vim.api.nvim_buf_is_valid(buf) and vim.api.nvim_win_is_valid(win) then
+          M.redirect_buffer_from_protected_window(buf, win)
         end
-      end
-    end,
-  })
-
-  -- Clean up protection cache when windows are closed
-  autocmd("WinClosed", {
-    group = augroup("YodaWindowProtectionCleanup", { clear = true }),
-    desc = "Clean up window protection cache",
-    callback = function(args)
-      local win = tonumber(args.match)
-      if win then
-        M.unprotect_window(win)
-      end
-    end,
-  })
+      end)
+    end
+  end
 end
 
 return M
