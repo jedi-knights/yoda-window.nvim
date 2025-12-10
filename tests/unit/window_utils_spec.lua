@@ -324,24 +324,15 @@ describe("window_utils", function()
   end)
 
   describe("find_snacks_explorer()", function()
-    it("finds window by snacks_ filetype prefix", function()
+    it("finds window by snacks-explorer filetype", function()
       setup_mock_windows({
         { win = 1, buf = 1, name = "normal.lua", ft = "lua" },
-        { win = 2, buf = 2, name = "explorer", ft = "snacks_explorer" },
+        { win = 2, buf = 2, name = "explorer", ft = "snacks-explorer" },
       })
 
       local win, buf = window_utils.find_snacks_explorer()
       assert.equals(2, win)
       assert.equals(2, buf)
-    end)
-
-    it("finds window by snacks filetype", function()
-      setup_mock_windows({
-        { win = 1, buf = 1, name = "file", ft = "snacks" },
-      })
-
-      local win, buf = window_utils.find_snacks_explorer()
-      assert.equals(1, win)
     end)
 
     it("finds window by snacks in buffer name", function()
