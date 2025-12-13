@@ -99,7 +99,7 @@ end
 --- @return number|nil, number|nil Window handle and buffer handle
 function M.find_snacks_explorer()
   return M.find_window(function(win, buf, buf_name, ft)
-    return ft == "snacks-explorer" or buf_name:match("snacks")
+    return ft == "snacks-explorer"
   end)
 end
 
