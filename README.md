@@ -70,6 +70,10 @@ local utils = require("yoda-window.utils")
 local win, buf = utils.find_snacks_explorer()
 local win, buf = utils.find_opencode()
 local win, buf = utils.find_by_filetype("lua")
+
+-- Close a window and grow another into the space it freed, stopping short
+-- of the Snacks explorer sidebar if one is open
+utils.reclaim_width(dashboard_win, claude_win)
 ```
 
 ## Protected Buffer Types

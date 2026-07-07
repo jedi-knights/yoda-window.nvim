@@ -138,6 +138,42 @@ function M.find_by_name(pattern)
   end)
 end
 
+--- Close a window and grow another window into the space it freed, stopping
+--- short of the Snacks explorer sidebar when one is open. Intended for
+--- surfaces (e.g. the dashboard) that should hand off their space to
+--- whatever the user just opened, without overlapping a persistent sidebar.
+--- @param close_win number Window handle to close
+--- @param target_win number Window handle to expand into the freed space
+--- @return boolean success True if close_win was closed
+function M.reclaim_width(close_win, target_win)
+  -- Input validation (assertive programming)
+  if type(close_win) ~= "number" or type(target_win) ~= "number" then
+    vim.notify("reclaim_width: close_win and target_win must be window handles", vim.log.levels.ERROR, { title = "Window Utils Error" })
+    return false
+  end
+
+  if not vim.api.nvim_win_is_valid(close_win) or not vim.api.nvim_win_is_valid(target_win) then
+    return false
+  end
+
+  local explorer_win = M.find_snacks_explorer()
+  local explorer_width = 0
+  if explorer_win and vim.api.nvim_win_is_valid(explorer_win) then
+    explorer_width = vim.api.nvim_win_get_width(explorer_win)
+  end
+
+  local ok = pcall(vim.api.nvim_win_close, close_win, false)
+  if not ok then
+    return false
+  end
+
+  if vim.api.nvim_win_is_valid(target_win) then
+    vim.api.nvim_win_set_width(target_win, vim.o.columns - explorer_width)
+  end
+
+  return true
+end
+
 --- Find window by filetype
 --- @param filetype string Filetype to match
 --- @return number|nil, number|nil Window handle and buffer handle

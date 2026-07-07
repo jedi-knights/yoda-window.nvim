@@ -9,6 +9,10 @@ describe("window_utils", function()
   local original_bo = vim.bo
   local original_set_current_win = vim.api.nvim_set_current_win
   local original_win_close = vim.api.nvim_win_close
+  local original_win_is_valid = vim.api.nvim_win_is_valid
+  local original_win_get_width = vim.api.nvim_win_get_width
+  local original_win_set_width = vim.api.nvim_win_set_width
+  local original_columns = vim.o.columns
   local original_notify = vim.notify
 
   -- Mock window/buffer setup
@@ -67,6 +71,10 @@ describe("window_utils", function()
     vim.bo = original_bo
     vim.api.nvim_set_current_win = original_set_current_win
     vim.api.nvim_win_close = original_win_close
+    vim.api.nvim_win_is_valid = original_win_is_valid
+    vim.api.nvim_win_get_width = original_win_get_width
+    vim.api.nvim_win_set_width = original_win_set_width
+    vim.o.columns = original_columns
     vim.notify = original_notify
   end)
 
@@ -491,6 +499,106 @@ describe("window_utils", function()
       -- Exact match should work
       local win2 = window_utils.find_by_filetype("markdown")
       assert.equals(1, win2)
+    end)
+  end)
+
+  describe("reclaim_width()", function()
+    local function mock_valid(wins)
+      vim.api.nvim_win_is_valid = function(win)
+        return wins[win] == true
+      end
+    end
+
+    it("closes the window and grows the target to full width when no explorer is open", function()
+      setup_mock_windows({
+        { win = 1, buf = 1, name = "dashboard", ft = "snacks_dashboard" },
+        { win = 2, buf = 2, name = "term://claude", ft = "snacks_terminal" },
+      })
+      mock_valid({ [1] = true, [2] = true })
+      vim.o.columns = 200
+
+      local closed = {}
+      vim.api.nvim_win_close = function(win)
+        closed[#closed + 1] = win
+        mock_valid({ [2] = true }) -- win 1 no longer valid after close
+      end
+
+      local resized_win, resized_width
+      vim.api.nvim_win_set_width = function(win, width)
+        resized_win, resized_width = win, width
+      end
+
+      local ok = window_utils.reclaim_width(1, 2)
+
+      assert.is_true(ok)
+      assert.same({ 1 }, closed)
+      assert.equals(2, resized_win)
+      assert.equals(200, resized_width)
+    end)
+
+    it("stops the target width short of an open explorer sidebar", function()
+      setup_mock_windows({
+        { win = 1, buf = 1, name = "dashboard", ft = "snacks_dashboard" },
+        { win = 2, buf = 2, name = "term://claude", ft = "snacks_terminal" },
+        { win = 3, buf = 3, name = "explorer", ft = "snacks_picker_list" },
+      })
+      mock_valid({ [1] = true, [2] = true, [3] = true })
+      vim.o.columns = 200
+      vim.api.nvim_win_get_width = function(win)
+        return win == 3 and 30 or 0
+      end
+      vim.api.nvim_win_close = function()
+        mock_valid({ [2] = true, [3] = true })
+      end
+
+      local resized_width
+      vim.api.nvim_win_set_width = function(_, width)
+        resized_width = width
+      end
+
+      window_utils.reclaim_width(1, 2)
+
+      assert.equals(170, resized_width)
+    end)
+
+    it("returns false without closing when close_win is invalid", function()
+      mock_valid({ [2] = true })
+
+      local close_called = false
+      vim.api.nvim_win_close = function()
+        close_called = true
+      end
+
+      local ok = window_utils.reclaim_width(1, 2)
+
+      assert.is_false(ok)
+      assert.is_false(close_called)
+    end)
+
+    it("returns false without closing when target_win is invalid", function()
+      mock_valid({ [1] = true })
+
+      local close_called = false
+      vim.api.nvim_win_close = function()
+        close_called = true
+      end
+
+      local ok = window_utils.reclaim_width(1, 2)
+
+      assert.is_false(ok)
+      assert.is_false(close_called)
+    end)
+
+    it("validates both arguments are window handles", function()
+      local notified = false
+      vim.notify = function()
+        notified = true
+      end
+
+      local ok = window_utils.reclaim_width("nope", 2)
+
+      assert.is_true(notified)
+      assert.is_false(ok)
     end)
   end)
 end)
