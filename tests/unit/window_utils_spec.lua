@@ -343,13 +343,25 @@ describe("window_utils", function()
       assert.equals(2, buf)
     end)
 
-    it("finds window by snacks in buffer name", function()
+    it("finds window by snacks_picker_list filetype", function()
+      setup_mock_windows({
+        { win = 1, buf = 1, name = "normal.lua", ft = "lua" },
+        { win = 2, buf = 2, name = "explorer", ft = "snacks_picker_list" },
+      })
+
+      local win, buf = window_utils.find_snacks_explorer()
+      assert.equals(2, win)
+      assert.equals(2, buf)
+    end)
+
+    it("does not match on buffer name alone", function()
       setup_mock_windows({
         { win = 1, buf = 1, name = "/snacks/explorer", ft = "other" },
       })
 
       local win, buf = window_utils.find_snacks_explorer()
-      assert.equals(1, win)
+      assert.is_nil(win)
+      assert.is_nil(buf)
     end)
   end)
 
